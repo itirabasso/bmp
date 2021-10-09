@@ -26,7 +26,7 @@ contract BMPGenerator {
     // todo : support rgba
     function generateBMP(uint256[32] memory template, uint24[16] memory palette)
         public
-        view
+        pure
         returns (uint24[32 * 32] memory bmp)
     {
         uint256 colorIndex;
@@ -34,19 +34,14 @@ contract BMPGenerator {
         for (uint256 y = 0; y < 32; y++) {
             uint256 yPos = 32 * y;
             uint256 row = template[y];
-            // console.log("row %d", y);
             for (uint256 x = 0; x < 32; x++) {
                 colorIndex = uint256(row & (0xff << (x * 8))) >> (x * 8);
                 bmp[yPos + x] = uint24(palette[colorIndex]);
                 // uint8 colorIndex = template[yPos+x];
-
                 // // uint8[][] template
                 // bmp[yPos + x] = uint24(
                 //     palette[template[yPos+x]]
                 // );
-                // console.log("(%d, %d) => %d", y, x, bmp[yPos + x]);
-                // console.log('rgb: %d', bmp[yPos+x]);
-
             }
         }
     }
