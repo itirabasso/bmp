@@ -133,8 +133,6 @@ task('set-template')
       let row = BigNumber.from(0)
       let yPos = y * 32
       for (let x = 0; x < 32; x++) {
-        // console.log(y, x)
-        // console.log(yPos + x*4)
         const [r, g, b, a] = [
           bitmap.data.readUInt8(yPos*4 + x*4),
           bitmap.data.readUInt8(yPos*4 + x*4 + 1),
@@ -146,13 +144,13 @@ task('set-template')
         )
         // console.log(rgba, row)
 
-        // row = row.or(BigNumber.from(colorIndex).shl(x*8))
+        row = row.or(BigNumber.from(colorIndex).shl(x*8))
         // set the indexed color
         // template.push(Object.values(indexedColors).indexOf(r))
-        template.push(colorIndex)
+        // template.push(colorIndex)
       }
-      // console.log(row.toHexString())
-      // template.push(row)
+      console.log(row.toHexString())
+      template.push(row)
     }
     // console.log(template)
     const tx = await bmp.addTemplate(template)
