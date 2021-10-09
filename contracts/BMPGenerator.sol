@@ -6,49 +6,70 @@ import "hardhat/console.sol";
 contract BMPGenerator {
     string private greeting;
 
-    uint24[16][] public _palettes;
-    uint8[32*32] public _template;
+    uint24[16][] private _palettes;
+    uint256[32][] private _templates;
 
-    constructor() {
 
-    }
-
-    function setTemplate(uint8[32*32] memory newTemplate) public returns (string memory) {
-        _template = newTemplate;
-    }
-
-    function getBMP() public view returns (uint24[32*32] memory bmp) {
+    function getBMP(uint256 templateId, uint256 paletteId)
+        public
+        view
+        returns (uint24[32 * 32] memory bmp)
+    {
         uint256 gasBefore = gasleft();
-        uint24[16] memory palette = _palettes[0];
+        uint256[32] storage template = getTemplate(templateId);
+        uint24[16] storage palette = getPalette(paletteId);
+        bmp = generateBMP(template, palette);
 
-        for (uint256 y = 0; y < 32; y++) {
-            uint yPos = 32 * y;
-            for (uint256 x = 0; x < 32; x++) {
-                bmp[yPos + x] = palette[_template[yPos + x]];
-            }
-        }
         uint256 gasAfter = gasleft();
         console.log("gas used: %d", gasBefore - gasAfter);
     }
 
-    function getBMPFromTemplate(
-        uint8[32*32] memory template,
+    function generateBMP(
+        uint256[32] memory template,
         uint24[16] memory palette
-    ) public pure returns (uint24[32*32] memory bmp) {
+    ) public pure returns (uint24[32 * 32] memory bmp) {
+
+        uint colorIndex;
+        // trim would be useful here
         for (uint256 y = 0; y < 32; y++) {
-            uint yPos = 32 * y;
+            // uint256 yPos = 32 * y;
+            uint256 row = template[y];
             for (uint256 x = 0; x < 32; x++) {
-                bmp[yPos + x] = palette[template[yPos + x]];
+                uint24 rgb = palette[template[yPos + x]];
+                bmp[yPos + x] = rgb;
             }
         }
     }
 
+    // pack it
+    function getTemplate(uint256 templateId)
+        internal
+        view
+        returns (uint256[32] storage template)
+    {
+        template = _templates[templateId];
+    }
 
-//    function getPaletteColor(uint24[] palette) public view returns (uint24) {
-//        return 
-//    }
+    function getPalette(uint256 paletteId)
+        internal
+        view
+        returns (uint24[16] storage)
+    {
+        uint24[16] storage palette = _palettes[paletteId];
+        return palette;
+    }
 
-    function addPalette(uint24[16] memory palette) public {
+    // counters
+
+    function addTemplate(uint256[32] memory newTemplate)
+        external 
+    {
+        // read evm of this line
+        _templates.push(newTemplate);
+    }
+
+
+    function addPalette(uint24[16] memory palette) external {
         _palettes.push(palette);
     }
 }
