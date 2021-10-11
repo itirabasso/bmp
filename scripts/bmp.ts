@@ -1,11 +1,7 @@
-import { ethers } from "hardhat";
-import { task } from "hardhat/config";
+import { internalTask, task } from "hardhat/config";
 import Jimp from "jimp";
 
-import { createCanvas, ImageData, Image } from 'canvas';
 import { BigNumber, BigNumberish } from "ethers";
-import { HardhatRuntimeEnvironment, TaskArguments } from "hardhat/types";
-import { formatEther } from "ethers/lib/utils";
 
 const bytesToRGB = (r: number, g: number, b: number): number => {
   return BigNumber.from(b).shl(16)
@@ -17,11 +13,12 @@ const RGBtoBytes = (rgb: number): BigNumberish => {
   return [rgb & 0xff, (rgb & 0xff00) >> 8, (rgb & 0xff0000) >> 16]
 }
 
-const bytesToRow = (uint8s: number[], width: number) => {
-
+function greyscale(r: number, g: number, b: number) {
+  return Math.ceil(0.299 * r + 0.587 * g + 0.114 * b)
 }
 
-const generatorAddress = '0x4EE6eCAD1c2Dae9f525404De8555724e3c35d07B'
+const generatorAddress = '0xc5a5C42992dECbae36851359345FE25997F5C42d'
+
 task('deploy').setAction(async (args, env) => {
   await env.run('compile')
   const BMP = await env.ethers.getContractFactory("BMPGenerator");
@@ -36,10 +33,11 @@ task('deploy').setAction(async (args, env) => {
 task('full').setAction(async (args, env) => {
   const bmp = await env.run('deploy')
 
-  await env.run('set-template', {
+  await env.run('process-bmp', {
+    file: './assets/potion_color.bmp',
     bmp: bmp.address
   })
-  await env.run('set-palette', {
+  await env.run('add-palette', {
     bmp: bmp.address
   })
 
@@ -47,13 +45,82 @@ task('full').setAction(async (args, env) => {
 
 })
 
-task('get-bmp')
+task('get-url')
+  .addPositionalParam('template', '', '0')
+  .addPositionalParam('palette', '', '0')
   .setAction(async (args, { ethers }) => {
     const bmp = await ethers.getContractAt('BMPGenerator', generatorAddress)
+    // console.log(await bmp.getBase64URL(args.template, args.palette))
     console.log(await bmp.getBMP(0, 0))
   })
 
-task('add-template')
+task('process-bmp')
+  .addOptionalParam('file')
+  .addOptionalParam('bmp')
+  .setAction(async (args, { ethers }) => {
+    const indexedColors: Record<number, number[]> = {};
+    for (let i = 0; i < 256; i++) {
+      indexedColors[i] = [0, 0, 0]
+    }
+    const bmp = await ethers.getContractAt('BMPGenerator', args.bmp || generatorAddress)
+
+    const file = await Jimp.read(args.file)
+
+    const greyTemplate = []
+    // we use a greyscaled pixel to index every color.
+    for (let i = 0; i < file.bitmap.data.length; i += 4) {
+      // pixel_i
+      const [r, g, b, a] = [
+        file.bitmap.data.readUInt8(i),
+        file.bitmap.data.readUInt8(i + 1),
+        file.bitmap.data.readUInt8(i + 2),
+        file.bitmap.data.readUInt8(i + 3)
+      ]
+      const grey = greyscale(r, g, b)
+      indexedColors[grey] = [r, g, b]
+      greyTemplate.push(grey)
+      // console.log('grey', grey)
+      // if (indexedColors.findIndex((rgb: any) => rgb[0] == r) === -1) {
+      //   console.log(greyscaled, '=>', [r, g, b])
+      //   indexedColors.push([r, g, b])
+      // }
+    }
+
+    console.log(indexedColors)
+
+    const template: any = []
+    // create template of indexed colors
+    const bitmap = file.bitmap
+    for (let y = 0; y < 32; y++) {
+      let row = BigNumber.from(0)
+      let yPos = y * 32
+      for (let x = 0; x < 32; x++) {
+        const colorIndex = greyTemplate[yPos + x]
+        row = row.or(BigNumber.from(colorIndex).shl(x * 8))
+        // set the indexed color
+        // template.push(Object.values(indexedColors).indexOf(r))
+        // template.push(colorIndex)
+      }
+      console.log(row.toHexString())
+      template.push(row)
+    }
+    // console.log(template)
+    let tx = await bmp.addTemplate(template)
+    let receipt = await tx.wait()
+
+    const palette: any = Object.values(indexedColors).map(
+      (color: number[]) => {
+        const [r, g, b] = color
+        return bytesToRGB(r, g, b)
+      }
+    )
+
+    tx = await bmp.addPalette(palette)
+    await tx.wait()
+    console.log(receipt.gasUsed.toNumber())
+  })
+
+internalTask('add-template')
   .addOptionalParam('file')
   .addOptionalParam('bmp')
   .setAction(async (args, { ethers }) => {
@@ -91,17 +158,17 @@ task('add-template')
       let yPos = y * 32
       for (let x = 0; x < 32; x++) {
         const [r, g, b, a] = [
-          bitmap.data.readUInt8(yPos*4 + x*4),
-          bitmap.data.readUInt8(yPos*4 + x*4 + 1),
-          bitmap.data.readUInt8(yPos*4 + x*4 + 2),
-          bitmap.data.readUInt8(yPos*4 + x*4 + 3)
+          bitmap.data.readUInt8(yPos * 4 + x * 4),
+          bitmap.data.readUInt8(yPos * 4 + x * 4 + 1),
+          bitmap.data.readUInt8(yPos * 4 + x * 4 + 2),
+          bitmap.data.readUInt8(yPos * 4 + x * 4 + 3)
         ]
         const colorIndex = indexedColors.findIndex(
           (rgb: any) => rgb[0] == r
         )
         // console.log(rgba, row)
 
-        row = row.or(BigNumber.from(colorIndex).shl(x*8))
+        row = row.or(BigNumber.from(colorIndex).shl(x * 8))
         // set the indexed color
         // template.push(Object.values(indexedColors).indexOf(r))
         // template.push(colorIndex)
@@ -110,11 +177,13 @@ task('add-template')
       template.push(row)
     }
     // console.log(template)
-    const tx = await bmp.addTemplate(template)
-    const receipt = await tx.wait()
-    console.log(receipt.gasUsed.toNumber())
+    // const tx = await bmp.addTemplate(template)
+    // const receipt = await tx.wait()
+    // console.log(receipt.gasUsed.toNumber())
   })
 
+
+/*
 task('add-palette')
   .addOptionalParam('bmp')
   .setAction(async (args, { ethers }) => {
@@ -138,25 +207,6 @@ task('add-palette')
       0,
     ])
 
-    await tx.wait()
+    // await tx.wait()
   })
-
-
-  // const palette = [
-  //   [10, 10, 54],
-  //   [10, 32, 54],
-  //   [10, 32, 74],
-  //   [10, 74, 74],
-  //   [32, 74, 86],
-  //   [54, 74, 96],
-  //   [64, 84, 96],
-  //   [74, 96, 96],
-  //   [0, 0, 0],
-  //   [0, 0, 0],
-  //   [0, 0, 0],
-  //   [0, 0, 0],
-  //   [0, 0, 0],
-  //   [0, 0, 0],
-  //   [0, 0, 0],
-  //   [0, 0, 0]
-  // ]
+*/
