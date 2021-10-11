@@ -5,35 +5,15 @@ import Jimp from "jimp";
 import { createCanvas, ImageData, Image } from 'canvas';
 import { BigNumber, BigNumberish } from "ethers";
 import { HardhatRuntimeEnvironment, TaskArguments } from "hardhat/types";
+import { formatEther } from "ethers/lib/utils";
 
 const bytesToRGB = (r: number, g: number, b: number): number => {
-  // return (r*255/100) | (g*255/100) << 8 | (b*255/100) << 16
-  // console.log(r,g,b)
-  // console.log(
-  //   (
-  //     BigNumber.from(b).shl(16)
-  //   ),
-  //   BigNumber.from(g).shl(8),
-  //   BigNumber.from(r)
-  // )
-  // const ret = BigNumber.from(b).shl(16)
-  // .add(BigNumber.from(g).shl(8))
-  // .add(BigNumber.from(r)).toNumber()
-  // console.log('aaa', RGBtoBytes(ret))
   return BigNumber.from(b).shl(16)
     .add(BigNumber.from(g).shl(8))
     .add(BigNumber.from(r)).toNumber()
-  // return BigNumber.from(r).add(g << 8).add(b << 16).toNumber()
 }
 
 const RGBtoBytes = (rgb: number): BigNumberish => {
-  // return (r*255/100) | (g*255/100) << 8 | (b*255/100) << 16
-  // return r | g << 8 | b << 16
-  // console.log([
-  //   rgb & 0xff,
-  //   rgb & 0xff00 >> 8,
-  //   rgb & 0xff0000 >> 16
-  // ])
   return [rgb & 0xff, (rgb & 0xff00) >> 8, (rgb & 0xff0000) >> 16]
 }
 
@@ -52,55 +32,38 @@ task('deploy').setAction(async (args, env) => {
   console.log("BMP deployed to:", bmp.address);
   return bmp
 })
+
 task('full').setAction(async (args, env) => {
   const bmp = await env.run('deploy')
+
   await env.run('set-template', {
     bmp: bmp.address
   })
   await env.run('set-palette', {
     bmp: bmp.address
   })
+
   console.log("BMP deployed to:", bmp.address);
 
 })
+
 task('get-bmp')
   .setAction(async (args, { ethers }) => {
-    // const BMP = await ethers.getContractFactory("BMPGenerator");
-    // const bmp = await BMP.deploy();
-    // await bmp.deployed();
     const bmp = await ethers.getContractAt('BMPGenerator', generatorAddress)
-    // console.log("BMP deployed to:", bmp.address);
-
-    console.log('c', Date.now())
     console.log(await bmp.getBMP(0, 0))
-    console.log('d', Date.now())
   })
 
-task('get-template')
-  .setAction(async (args, { ethers }) => {
-    // const BMP = await ethers.getContractFactory("BMPGenerator");
-    // const bmp = await BMP.deploy();
-    // await bmp.deployed();
-    const bmp = await ethers.getContractAt(
-      'BMPGenerator',
-      generatorAddress
-    )
-    // console.log("BMP deployed to:", bmp.address);
-
-    console.log('c', Date.now())
-    console.log(await bmp.getBMP(0, 0))
-    console.log('d', Date.now())
-  })
-
-task('set-template')
+task('add-template')
   .addOptionalParam('file')
   .addOptionalParam('bmp')
   .setAction(async (args, { ethers }) => {
+    // initialize palette with reserved colors
     const indexedColors = [
       [0, 0, 0]
     ]
-    const bmp = await ethers.getContractAt('BMPGenerator', args.bmp)
-    const gem = await Jimp.read('./scripts/gem4.bmp')
+    const bmp = await ethers.getContractAt('BMPGenerator', args.bmp || generatorAddress)
+
+    const gem = await Jimp.read(args.file || './scripts/gem.bmp')
 
     const greyTemplate: number[] = []
     for (let i = 0; i < gem.bitmap.data.length; i += 4) {
@@ -118,13 +81,7 @@ task('set-template')
       }
     }
 
-    // reds (but all colors are the same because of greyscale)
     console.log(indexedColors)
-    // const rs = indexedColors.map(([r, g, b]: any) => r)
-    // const sortedReds = rs.sort((a: number, b: number) => {
-    //   return a - b;
-    // });
-    // only want to read the color red
 
     const template: any = []
     // create template of indexed colors
@@ -154,18 +111,14 @@ task('set-template')
     }
     // console.log(template)
     const tx = await bmp.addTemplate(template)
-    await tx.wait()
+    const receipt = await tx.wait()
+    console.log(receipt.gasUsed.toNumber())
   })
 
-task('set-palette')
+task('add-palette')
   .addOptionalParam('bmp')
   .setAction(async (args, { ethers }) => {
     const bmp = await ethers.getContractAt('BMPGenerator', args.bmp || generatorAddress)
-    console.log(
-      RGBtoBytes(
-        bytesToRGB(136, 192, 247)
-      )
-    )
     const tx = await bmp.addPalette([
       bytesToRGB(0, 0, 0),
       bytesToRGB(255, 255, 255),
@@ -184,26 +137,7 @@ task('set-palette')
       0,
       0,
     ])
-    /*
-    const tx = await bmp.addPalette([
-      bytesToRGB(99, 99, 99),
-      bytesToRGB(1, 1, 1),
-      bytesToRGB(64, 84, 96),
-      bytesToRGB(54, 74, 96),
-      bytesToRGB(74, 96, 96),
-      bytesToRGB(32, 74, 96),
-      bytesToRGB(10, 74, 86),
-      bytesToRGB(10, 32, 54),
-      bytesToRGB(10, 32, 74),
-      bytesToRGB(10, 10, 54),
-      0,
-      0,
-      0,
-      0,
-      0,
-      0
-    ])
-    */
+
     await tx.wait()
   })
 
