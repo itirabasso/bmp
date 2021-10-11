@@ -16,13 +16,9 @@ contract BMPGenerator {
         view
         returns (uint24[32 * 32] memory bmp)
     {
-        uint256 gasBefore = gasleft();
         uint256[32] storage template = getTemplate(templateId);
         uint24[256] storage palette = getPalette(paletteId);
         bmp = generateBMP(template, palette);
-
-        uint256 gasAfter = gasleft();
-        console.log("gas used: %d", gasBefore - gasAfter);
     }
 
     // todo : support rgba
@@ -32,18 +28,12 @@ contract BMPGenerator {
         returns (uint24[32 * 32] memory bmp)
     {
         uint256 colorIndex;
-        // trim would be useful here
         for (uint256 y = 0; y < 32; y++) {
             uint256 yPos = 32 * y;
             uint256 row = template[y];
             for (uint256 x = 0; x < 32; x++) {
                 colorIndex = uint256(row & (0xff << (x * 8))) >> (x * 8);
                 bmp[yPos + x] = uint24(palette[colorIndex]);
-                // uint8 colorIndex = template[yPos+x];
-                // // uint8[][] template
-                // bmp[yPos + x] = uint24(
-                //     palette[template[yPos+x]]
-                // );
             }
         }
     }

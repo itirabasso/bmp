@@ -29,6 +29,11 @@ const mnemonic = process.env.DEV_MNEMONIC || ''
 const config: HardhatUserConfig = {
   solidity: "0.8.4",
   networks: {
+    hardhat: {
+      accounts: {
+        mnemonic
+      }
+    },
     ropsten: {
       url: process.env.ROPSTEN_URL || "",
       accounts:

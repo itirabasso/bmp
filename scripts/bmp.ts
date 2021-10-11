@@ -19,9 +19,13 @@ function greyscale(r: number, g: number, b: number) {
 
 const generatorAddress = '0xc5a5C42992dECbae36851359345FE25997F5C42d'
 
-task('deploy').setAction(async (args, env) => {
-  await env.run('compile')
-  const BMP = await env.ethers.getContractFactory("BMPGenerator");
+task('deploy').setAction(async (args, { ethers, run }) => {
+  await run('compile')
+
+  const [_, deployer] = await ethers.getSigners()
+
+
+  const BMP = await ethers.getContractFactory("BMPGenerator", deployer);
   console.log('Deploying BMP')
   const bmp = await BMP.deploy();
   await bmp.deployed();
@@ -35,9 +39,6 @@ task('full').setAction(async (args, env) => {
 
   await env.run('process-bmp', {
     file: './assets/potion_color.bmp',
-    bmp: bmp.address
-  })
-  await env.run('add-palette', {
     bmp: bmp.address
   })
 
@@ -58,11 +59,18 @@ task('process-bmp')
   .addOptionalParam('file')
   .addOptionalParam('bmp')
   .setAction(async (args, { ethers }) => {
+
+    const [_, deployer] = await ethers.getSigners()
+
     const indexedColors: Record<number, number[]> = {};
     for (let i = 0; i < 256; i++) {
       indexedColors[i] = [0, 0, 0]
     }
-    const bmp = await ethers.getContractAt('BMPGenerator', args.bmp || generatorAddress)
+    const bmp = await ethers.getContractAt(
+      'BMPGenerator', 
+      args.bmp || generatorAddress,
+      deployer
+    )
 
     const file = await Jimp.read(args.file)
 
@@ -124,11 +132,18 @@ internalTask('add-template')
   .addOptionalParam('file')
   .addOptionalParam('bmp')
   .setAction(async (args, { ethers }) => {
+
+    const [_, deployer] = await ethers.getSigners()
+
     // initialize palette with reserved colors
     const indexedColors = [
       [0, 0, 0]
     ]
-    const bmp = await ethers.getContractAt('BMPGenerator', args.bmp || generatorAddress)
+    const bmp = await ethers.getContractAt(
+      'BMPGenerator',
+      args.bmp || generatorAddress,
+      deployer
+    )
 
     const gem = await Jimp.read(args.file || './scripts/gem.bmp')
 
